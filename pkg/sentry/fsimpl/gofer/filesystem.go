@@ -15,6 +15,7 @@
 package gofer
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -1607,4 +1608,36 @@ func (fs *filesystem) PrependPath(ctx context.Context, vfsroot, vd vfs.VirtualDe
 	fs.renameMu.RLock()
 	defer fs.renameMu.RUnlock()
 	return genericPrependPath(vfsroot, vd.Mount(), vd.Dentry().Impl().(*dentry), b)
+}
+
+// MountOptions implements vfs.FilesystemImpl.MountOptions.
+func (fs *filesystem) MountOptions() string {
+	opts := fmt.Sprintf("aname=%s,dfltuid=%d,dfltgid=%d,msize=%d,version=%s,dentry_cache_limit=%d",
+		fs.opts.aname, fs.opts.dfltuid, fs.opts.dfltgid, fs.opts.msize, fs.opts.version, fs.opts.maxCachedDentries)
+
+	opts += ",cache="
+	switch fs.opts.interop {
+	case InteropModeExclusive:
+		opts += "fscache"
+	case InteropModeWritethrough:
+		opts += "fscache_writethrough"
+	case InteropModeShared:
+		if fs.opts.regularFilesUseSpecialFileFD {
+			opts += "none"
+		} else {
+			opts += "remote_revalidating"
+		}
+	}
+
+	if fs.opts.forcePageCache {
+		opts += ",force_page_cache"
+	}
+	if fs.opts.limitHostFDTranslation {
+		opts += ",limit_host_fd_translation"
+	}
+	if fs.opts.overlayfsStaleRead {
+		opts += ",overlayfs_stale_read"
+	}
+
+	return opts
 }
